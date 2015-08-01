@@ -1,12 +1,12 @@
 ﻿" Vim auto-load script
 " Author: Peter Odding <peter@peterodding.com>
-" Last Change: July 7, 2014
+" Last Change: April 1, 2015
 " URL: http://peterodding.com/code/vim/notes/
 
 " Note: This file is encoded in UTF-8 including a byte order mark so
 " that Vim loads the script using the right encoding transparently.
 
-let g:xolox#notes#version = '0.26'
+let g:xolox#notes#version = '0.33'
 let g:xolox#notes#url_pattern = '\<\(mailto:\|javascript:\|\w\{3,}://\)\(\S*\w\)\+/\?'
 let s:scriptdir = expand('<sfile>:p:h')
 
@@ -60,6 +60,15 @@ function! xolox#notes#init() " {{{1
   " filename.
   if !exists('g:notes_recentindex')
     let g:notes_recentindex = xolox#misc#path#merge(localdir, 'recent.txt')
+  endif
+  " Define the default location of the template for new notes.
+  if !exists('g:notes_new_note_template')
+    if !empty($VIM_NOTES_TEMPLATE)
+      " Command line override.
+      let g:notes_new_note_template = xolox#misc#path#absolute($VIM_NOTES_TEMPLATE)
+    else
+      let g:notes_new_note_template = xolox#misc#path#merge(g:notes_shadowdir, 'New note')
+    endif
   endif
   " Define the default location of the template for HTML conversion.
   if !exists('g:notes_html_template')
@@ -158,8 +167,7 @@ function! xolox#notes#edit(bang, title) abort " {{{1
   let fname = xolox#notes#title_to_fname(title)
   noautocmd execute 'edit' . a:bang fnameescape(fname)
   if line('$') == 1 && getline(1) == ''
-    let fname = xolox#misc#path#merge(g:notes_shadowdir, 'New note')
-    execute 'silent read' fnameescape(fname)
+    execute 'silent read' fnameescape(g:notes_new_note_template)
     1delete
     if !xolox#notes#unicode_enabled()
       call s:transcode_utf8_latin1()
@@ -386,6 +394,14 @@ function! xolox#notes#omni_complete(findstart, base) " {{{1
   endif
 endfunction
 
+function! xolox#notes#auto_complete_tags() " {{{1
+  " Automatic completion of tags when the user types "@".
+  if !xolox#notes#currently_inside_snippet()
+    return "@\<C-x>\<C-o>"
+  endif
+  return "@"
+endfunction
+
 function! xolox#notes#save() abort " {{{1
   " When the current note's title is changed, automatically rename the file.
   if xolox#notes#filetype_is_note(&ft)
@@ -396,6 +412,10 @@ function! xolox#notes#save() abort " {{{1
       echoerr "Invalid note title"
       return
     endif
+    " Trigger the BufWritePre automatic command event because it provides
+    " a very unobtrusive way for users to extend the vim-notes plug-in.
+    execute 'doautocmd BufWritePre' fnameescape(newpath)
+    " Actually save the user's buffer to the file.
     let bang = v:cmdbang ? '!' : ''
     execute 'saveas' . bang fnameescape(newpath)
     " XXX If {oldpath} and {newpath} end up pointing to the same file on disk
@@ -419,6 +439,9 @@ function! xolox#notes#save() abort " {{{1
     " Update in-memory list of all notes.
     call xolox#notes#cache_del(oldpath)
     call xolox#notes#cache_add(newpath, title)
+    " Trigger the BufWritePost automatic command event because it provides
+    " a very unobtrusive way for users to extend the vim-notes plug-in.
+    execute 'doautocmd BufWritePost' fnameescape(newpath)
   endif
 endfunction
 
@@ -438,7 +461,10 @@ function! xolox#notes#delete(bang, title) " {{{1
       call xolox#misc#msg#warn("notes.vim %s: Failed to delete %s!", g:xolox#notes#version, filename)
     else
       call xolox#notes#cache_del(filename)
-      execute 'bdelete' . a:bang . ' ' . bufnr(filename)
+      let buffer_number = bufnr(filename)
+      if buffer_number >= 0
+        execute 'bdelete' . a:bang . ' ' . buffer_number
+      endif
     endif
   endif
 endfunction
@@ -964,22 +990,47 @@ function! xolox#notes#insert_ruler() " {{{3
   call append(line1, ['', g:notes_ruler_text, ''])
 endfunction
 
-function! xolox#notes#insert_quote(style) " {{{3
+function! xolox#notes#insert_quote(chr) " {{{3
   " XXX When I pass the below string constants as arguments from the file type
   " plug-in the resulting strings contain mojibake (UTF-8 interpreted as
   " latin1?) even if both scripts contain a UTF-8 BOM! Maybe a bug in Vim?!
-  if xolox#notes#unicode_enabled()
-    let [open_quote, close_quote] = a:style == 1 ? ['‘', '’'] : ['“', '”']
-  else
-    let [open_quote, close_quote] = a:style == 1 ? ['`', "'"] : ['"', '"']
+  if g:notes_smart_quotes && !xolox#notes#currently_inside_snippet()
+    if xolox#notes#unicode_enabled()
+      let [open_quote, close_quote] = (a:chr == "'") ? ['‘', '’'] : ['“', '”']
+    else
+      let [open_quote, close_quote] = (a:chr == "'") ? ['`', "'"] : ['"', '"']
+    endif
+    return getline('.')[col('.')-2] =~ '[^\t (]$' ? close_quote : open_quote
   endif
-  return getline('.')[col('.')-2] =~ '[^\t (]$' ? close_quote : open_quote
+  return a:chr
+endfunction
+
+function! xolox#notes#insert_em_dash() " {{{3
+  " Change double-dash (--) to em-dash (—) as it is typed.
+  return (g:notes_smart_quotes && xolox#notes#unicode_enabled() && !xolox#notes#currently_inside_snippet()) ? '—' : '--'
+endfunction
+
+function! xolox#notes#insert_left_arrow() " {{{3
+  " Change ASCII left arrow (<-) to Unicode arrow (←) as it is typed.
+  return (g:notes_smart_quotes && xolox#notes#unicode_enabled() && !xolox#notes#currently_inside_snippet()) ? '←' : "<-"
+endfunction
+
+function! xolox#notes#insert_right_arrow() " {{{3
+  " Change ASCII right arrow (->) to Unicode arrow (→) as it is typed.
+  return (g:notes_smart_quotes && xolox#notes#unicode_enabled() && !xolox#notes#currently_inside_snippet()) ? '→' : '->'
+endfunction
+
+function! xolox#notes#insert_bidi_arrow() " {{{3
+  " Change bidirectional ASCII arrow (->) to Unicode arrow (→) as it is typed.
+  return (g:notes_smart_quotes && xolox#notes#unicode_enabled() && !xolox#notes#currently_inside_snippet()) ? '↔' : "<->"
 endfunction
 
 function! xolox#notes#insert_bullet(chr) " {{{3
   " Insert a UTF-8 list bullet when the user types "*".
-  if getline('.')[0 : max([0, col('.') - 2])] =~ '^\s*$'
-    return xolox#notes#get_bullet(a:chr)
+  if !xolox#notes#currently_inside_snippet()
+    if getline('.')[0 : max([0, col('.') - 2])] =~ '^\s*$'
+      return xolox#notes#get_bullet(a:chr)
+    endif
   endif
   return a:chr
 endfunction
@@ -1112,7 +1163,7 @@ function! xolox#notes#highlight_sources(force) " {{{3
   " Look for code blocks in the current note.
   let filetypes = {}
   for line in getline(1, '$')
-    let ft = matchstr(line, '{{' . '{\zs\w\+\>')
+    let ft = matchstr(line, '\({{[{]\|```\)\zs\w\+\>')
     if ft !~ '^\d*$' | let filetypes[ft] = 1 | endif
   endfor
   " Don't refresh the highlighting if nothing has changed.
@@ -1128,8 +1179,11 @@ function! xolox#notes#highlight_sources(force) " {{{3
     for ft in keys(filetypes)
       let group = 'notesSnippet' . toupper(ft)
       let include = s:syntax_include(ft)
-      let command = 'syntax region %s matchgroup=%s start="{{{%s" matchgroup=%s end="}}}" keepend contains=%s%s'
-      execute printf(command, group, startgroup, ft, endgroup, include, has('conceal') ? ' concealends' : '')
+      for [startmarker, endmarker] in [['{{{', '}}}'], ['```', '```']]
+        let conceal = has('conceal') && xolox#misc#option#get('notes_conceal_code', 1)
+        let command = 'syntax region %s matchgroup=%s start="%s%s \?" matchgroup=%s end="%s" keepend contains=%s%s'
+        execute printf(command, group, startgroup, startmarker, ft, endgroup, endmarker, include, conceal ? ' concealends' : '')
+      endfor
     endfor
     if &vbs >= 1
       call xolox#misc#timer#stop("notes.vim %s: Highlighted embedded %s sources in %s.", g:xolox#notes#version, join(sort(keys(filetypes)), '/'), starttime)
@@ -1206,21 +1260,33 @@ function! xolox#notes#foldexpr() " {{{3
       let retval = '>' . nextlevel
     endif
   endif
-  if retval != '='
-    " Check whether the change in folding introduced by 'rv'
-    " is invalidated because we're inside a code block.
-    let pos_save = getpos('.')
-    try
-      call setpos('.', [0, v:lnum, 1, 0])
-      if search('{{{\|\(}}}\)', 'bnpW') == 1
-        let retval = '='
-      endif
-    finally
-      " Always restore the cursor position!
-      call setpos('.', pos_save)
-    endtry
+  " Check whether the change in folding introduced by 'rv'
+  " is invalidated because we're inside a code block.
+  if retval != '=' && xolox#notes#inside_snippet(v:lnum, 1)
+    let retval = '='
   endif
   return retval
+endfunction
+
+function! xolox#notes#inside_snippet(lnum, col) " {{{3
+  " Check if the given line and column position is inside a snippet (a code
+  " block enclosed by triple curly brackets or triple back ticks). This
+  " function temporarily changes the cursor position in the current buffer in
+  " order to search backwards efficiently.
+  let pos_save = getpos('.')
+  try
+    call setpos('.', [0, a:lnum, a:col, 0])
+    let matching_subpattern = search('{{{\|\(}}}\)\|```\w\|\(```\)', 'bnpW')
+    return matching_subpattern == 1
+  finally
+    call setpos('.', pos_save)
+  endtry
+endfunction
+
+function! xolox#notes#currently_inside_snippet() " {{{3
+  " Check if the current cursor position is inside a snippet (a code block
+  " enclosed by triple curly brackets).
+  return xolox#notes#inside_snippet(line('.'), col('.'))
 endfunction
 
 function! xolox#notes#foldtext() " {{{3

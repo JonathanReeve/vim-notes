@@ -15,21 +15,18 @@ The vim-notes plug-in for the [Vim text editor] [vim] makes it easy to manage yo
    * **Back-references:** The `:RelatedNotes` command find all notes referencing the current file
    * A [Python 2] [python] script is included that accelerates keyword searches using a keyword index
    * The `:RecentNotes` command lists your notes by modification date, starting with the most recently edited note
+ * **Navigating within notes:** The vim-notes syntax uses atx-style headers just like [Markdown] [markdown] (one to six `#` marks at the start of the line) and supports text folding based on these headers. This allows easy navigation within notes that contain large (and possibly nested) sections of text separated by headers. [Here's a screen shot of text folding] [folding].
  * **Navigating between notes:** The included syntax script highlights note names as hyper links and the file type plug-in redefines [gf] [gf] to jump between notes (the [Control-w f] [ctrlwf] mapping to jump to a note in a split window and the [Control-w gf] [ctrlwgf] mapping to jump to a note in a new tab page also work)
  * **Writing aids:** The included file type plug-in contains mappings for automatic curly quotes, arrows and list bullets and supports completion of note titles using Control-X Control-U and completion of tags using Control-X Control-O
- * **Embedded file types:** The included syntax script supports embedded highlighting using blocks marked with `{{{type … }}}` which allows you to embed highlighted code and configuration snippets in your notes
+ * **Embedded file types:** The included syntax script supports embedded highlighting using blocks marked with `{{{type … }}}` (triple back ticks ala [GFM] [gfm] are also supported) which allows you to embed highlighted code and configuration snippets in your notes
 
-Here's a screen shot of the syntax mode using the [Slate] [slate] color scheme and the font [Monaco] [monaco]:
+Here's a screen shot of the syntax mode (using the [Slate] [slate] color scheme and the [Monaco] [monaco] font):
 
 ![Syntax mode screen shot](http://peterodding.com/code/vim/notes/syntax.png)
 
 ## Install & usage
 
-*Please note that the vim-notes plug-in requires my vim-misc plug-in which is separately distributed.*
-
-Unzip the most recent ZIP archives of the [vim-notes] [download-notes] and [vim-misc] [download-misc] plug-ins inside your Vim profile directory (usually this is `~/.vim` on UNIX and `%USERPROFILE%\vimfiles` on Windows), restart Vim and execute the command `:helptags ~/.vim/doc` (use `:helptags ~\vimfiles\doc` instead on Windows). To get started execute `:Note` or `:edit note:`, this will start a new note that contains instructions on how to continue from there (and how to use the plug-in in general).
-
-If you prefer you can also use [Pathogen] [pathogen], [Vundle] [vundle] or a similar tool to install & update the [vim-notes] [github-notes] and [vim-misc] [github-misc] plug-ins using a local clone of the git repository.
+Please refer to [the installation instructions] [install-notes] available on GitHub. Once you've installed the plug-in you can get started by executing `:Note` or `:edit note:`, this will start a new note that contains instructions on how to continue from there (and how to use the plug-in in general).
 
 ## Options
 
@@ -129,6 +126,30 @@ This option defines the pathname of the text file that stores the list of known 
 
 The `:NoteToHtml` command requires the [Markdown] [markdown] program. By default the name of this program is assumed to be simply `markdown`. If you want to use a different program for Markdown to HTML conversion, set this option to the name of the program.
 
+### The `g:notes_conceal_code` option
+
+By default the backticks that mark inline code snippets and the curly quotes that mark code blocks are hidden when your version of Vim supports concealing of text. By setting this option to zero you stop vim-notes from hiding these markers. For example in the following sentence, the backticks would be visible in the editor when this option is set to zero:
+
+    This is a sentence with an `inline code` fragment.
+
+### The `g:notes_conceal_italic` option
+
+By default the underscores that mark italic text are hidden when your version of Vim supports concealing of text. By setting this option to zero you stop vim-notes from hiding those underscores. In the following example, the underscores would be visible in the editor when this option is set to zero:
+
+    This is a sentence with _italic_ text.
+
+### The `g:notes_conceal_bold` option
+
+By default the stars that mark bold text are hidden when your version of Vim supports concealing of text. By setting this option to zero you stop vim-notes from hiding those stars. In the following example, the stars would be visible in the editor when this option is set to zero:
+
+    This is a sentence with *bold* text.
+
+### The `g:notes_conceal_url` option
+
+By default URL schemes (text fragments like `http://`) are hidden when your version of Vim supports concealing of text. By setting this option to zero you stop vim-notes from hiding URL schemes. In the following example, the `https://` text would be visible in the editor when this option is set to zero:
+
+    You can find the vim-notes plug-in at https://github.com/xolox/vim-notes.
+
 ## Commands
 
 To edit one of your existing notes (or create a new one) you can use Vim commands such as [:edit] [edit], [:split] [split] and [:tabedit] [tabedit] with a filename that starts with *note:* followed by (part of) the title of one of your notes, e.g.:
@@ -139,7 +160,7 @@ This shortcut also works from the command line:
 
     $ gvim note:todo
 
-When you don't follow *note:* with anything a new note is created like when you execute `:Note` without any arguments.
+When you don't follow *note:* with anything a new note is created like when you execute `:Note` without any arguments. If the *note:* shortcut is used from the command line, the environment variable `$VIM_NOTES_TEMPLATE` can be set to the filename of a template for new notes (this will override the default template).
 
 ### The `:Note` command
 
@@ -230,7 +251,13 @@ If for any reason you want to recreate the list of tags you can execute the `:In
 
 ### The `:NoteToHtml` command
 
-This command converts the current note to HTML. It works by first converting the current note to [Markdown] [markdown] and then using the `markdown` program to convert that to HTML. It requires an external program to convert Markdown to HTML. By default the program `markdown` is used, but you can change the name of the program using the `g:notes_markdown_program` option.
+This command converts the current note to HTML. It works by first converting the current note to [Markdown] [markdown] and then using the `markdown` program to convert that to HTML. It requires an external program to convert Markdown to HTML. By default the program `markdown` is used, but you can change the name of the program using the `g:notes_markdown_program` option. To convert your note to HTML and open the generated web page in a browser, you can run:
+
+    :NoteToHtml
+
+Alternatively, to convert your note to HTML and display it in a new split window in Vim, you can run:
+
+    :NoteToHtml split
 
 Note that this command can be a bit slow, because the parser for the note taking syntax is written in Vim script (for portability) and has not been optimized for speed (yet).
 
@@ -245,6 +272,14 @@ Convert the current note to a [Markdown document] [markdown]. The vim-notes synt
  * The markers and indentation of list items differ between notes and Markdown (dumb bullets vs Unicode bullets and 3 vs 4 spaces).
 
 Note that this command can be a bit slow, because the parser for the note taking syntax is written in Vim script (for portability) and has not been optimized for speed (yet).
+
+### The `:NoteToMediawiki` command
+
+Convert the current note to a [Mediawiki document] [mediawiki]. This is similar to the `:NoteToMarkdown` command, but it produces wiki text that can be displayed on a Mediawiki site. That being said, the subset of wiki markup that vim-notes actually produces will probably work on other wiki sites. These are the notable transforations:
+
+ * The first line of the note is a title, but it isn't used in the Mediawiki syntax. It could have been put into a `= Title =` tag, but it doesn't really make sense in the context of a wiki. It would make the table of contents nest under the title for every document you create.
+
+ * Preformatted blocks are output into `<syntaxhighlight lang="..">` tags. This functionality is enabled on Mediawiki through the [SyntaxHighlight GeSHi extention] [geshi]. It is also supported on Wikipedia.
 
 ## Mappings
 
@@ -331,29 +366,44 @@ If the text formatting supported by the notes plug-in is not enough for you, con
     " Enable Txtfmt formatting inside notes.
     setlocal filetype=notes.txtfmt
 
+## Using the notes file type for git commit messages
+
+If you write your git commit messages in Vim and want to use the notes file type (syntax highlighting and editing mode) to edit your git commit messages you can add the following line to your [vimrc script] [vimrc]:
+
+    au BufNewFile,BufRead *.git/COMMIT_EDITMSG	setf notes
+
+This is not a complete solution (there are more types of commit messages that the pattern above won't match) but that is outside the scope of this document. For inspiration you can take a look at the [runtime/filetype.vim] [filetype.vim] file in Vim's Mercurial repository.
+
+## Using multiple platforms (multi boot, Cygwin, etc.)
+
+Session scripts cannot be shared between platforms because they contain absolute pathnames that most certainly won't match between e.g. Windows and Linux or even Windows and Cygwin. The best you can do is keep separate session scripts for different platforms (and I would certainly consider Cygwin a separate platform altogether :-). For more information please refer to [issue #85] [issue_85].
+
 ## Contact
 
 If you have questions, bug reports, suggestions, etc. the author can be contacted at <peter@peterodding.com>. The latest version is available at <http://peterodding.com/code/vim/notes/> and <http://github.com/xolox/vim-notes>. If you like the script please vote for it on [Vim Online] [vim_online].
 
 ## License
 
-This software is licensed under the [MIT license] [mit].
-© 2014 Peter Odding &lt;<peter@peterodding.com>&gt;.
+This software is licensed under the [MIT license] [mit].  
+© 2015 Peter Odding &lt;<peter@peterodding.com>&gt;.
 
 
 [ctrlwf]: http://vimdoc.sourceforge.net/htmldoc/windows.html#CTRL-W_f
 [ctrlwgf]: http://vimdoc.sourceforge.net/htmldoc/windows.html#CTRL-W_gf
-[download-misc]: http://peterodding.com/code/vim/downloads/misc.zip
-[download-notes]: http://peterodding.com/code/vim/downloads/notes.zip
 [edit]: http://vimdoc.sourceforge.net/htmldoc/editing.html#:edit
 [enc]: http://vimdoc.sourceforge.net/htmldoc/options.html#'encoding'
+[filetype.vim]: https://code.google.com/p/vim/source/browse/runtime/filetype.vim?r=fbc1131f0ba5be4ec74fb2ccdfb3559b446a2b1e#778
+[folding]: https://raw.githubusercontent.com/xolox/vim-notes/master/screenshots/folding.png
+[geshi]: http://www.mediawiki.org/wiki/Extension:SyntaxHighlight_GeSHi
 [gf]: http://vimdoc.sourceforge.net/htmldoc/editing.html#gf
-[github-misc]: http://github.com/xolox/vim-misc
-[github-notes]: http://github.com/xolox/vim-notes
+[gfm]: https://help.github.com/articles/github-flavored-markdown/
 [highlight]: http://vimdoc.sourceforge.net/htmldoc/syntax.html#:highlight
+[install-notes]: https://github.com/xolox/vim-notes/blob/master/INSTALL.md
+[issue_85]: https://github.com/xolox/vim-session/issues/85
 [levenshtein]: http://en.wikipedia.org/wiki/Levenshtein_distance
 [mapleader]: http://vimdoc.sourceforge.net/htmldoc/map.html#mapleader
 [markdown]: http://en.wikipedia.org/wiki/Markdown
+[mediawiki]: https://www.mediawiki.org/wiki/MediaWiki
 [mit]: http://en.wikipedia.org/wiki/MIT_License
 [modeline]: http://vimdoc.sourceforge.net/htmldoc/options.html#modeline
 [monaco]: http://en.wikipedia.org/wiki/Monaco_(typeface)
@@ -371,5 +421,4 @@ This software is licensed under the [MIT license] [mit].
 [vimgrep]: http://vimdoc.sourceforge.net/htmldoc/quickfix.html#:vimgrep
 [vimrc]: http://vimdoc.sourceforge.net/htmldoc/starting.html#vimrc
 [voom]: http://www.vim.org/scripts/script.php?script_id=2657
-[vundle]: https://github.com/gmarik/vundle
 [write]: http://vimdoc.sourceforge.net/htmldoc/editing.html#:write
